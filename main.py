@@ -2,6 +2,10 @@ import requests
 
 from bs4 import BeautifulSoup
 import csv
+import os
+import urllib.request
+
+MainUrl = "http://books.toscrape.com/"
 
 def writeInCsv(allData, filename):
     header = ["product_page_url", "universal_ product_code (upc)", "title", "price_including_tax", "price_excluding_tax", "number_available", "product_description", "category", "review_rating", "image_url"]
@@ -18,7 +22,7 @@ def getPageFromRequest(url):
     
     return soup
 
-def getProductInfo(url):
+def getProductInfo(url, PathName):
     page = getPageFromRequest(url)
     table = page.find("table", {"class", "table table-striped"}).find_all("td")
     data = []
@@ -29,13 +33,16 @@ def getProductInfo(url):
     upc = table[0].text.strip()
     product_inc_tax = table[3].text.strip().encode('ascii', 'ignore').decode("ascii")
     product_exc_tax = table[2].text.strip().encode('ascii', 'ignore').decode("ascii")
-    image_url = page.find("div", {"class": "item active"}).img["src"].strip()
+    image_url = page.find("div", {"class": "item active"}).img["src"].strip().split("../..")[1]
     review = table[6].text.strip()
     
     data.append([url, upc, title, product_inc_tax, product_exc_tax, available, description, "category", review, image_url])
     
-    return data
+    urllib.request.urlretrieve(MainUrl+image_url, "./data/"+PathName+"/img/"+title+".jpg")
     
+    print("Product '"+title+"' retrieved")
+    
+    return data
     
 def getAllCategories(url):
     page = getPageFromRequest(url)
@@ -65,7 +72,7 @@ def getCategoryNumber(url):
         number = 1
     
     return number
-
+    
 def getCategoryData(url, categoryname):
     allData = []
     categoryInfo = getCategoryInfo(url)
@@ -73,23 +80,27 @@ def getCategoryData(url, categoryname):
 
     i=1
     path = "" 
+    PathName = categoryname.split("catalogue/category/books/")[1].split("/")[0]
+    
+    os.mkdir("./data/"+PathName)
+    os.mkdir("./data/"+PathName+"/img/")
+    
     for _ in range(0, int(number)):
-        if i <= number:
+        if i <= int(number):
             print(url+path)
             categoryInfo = getCategoryInfo(url+path)
             for book in categoryInfo:
-                newData = getProductInfo("http://books.toscrape.com/catalogue"+book.split("../../..")[1])
+                newData = getProductInfo(MainUrl+"catalogue"+book.split("../../..")[1], PathName)
                 allData.extend(newData)
             i+=1
             path = "page-"+str(i)+".html"
-
-    writeInCsv(allData, "./data/"+categoryname.split("catalogue/category/books/")[1].split("/")[0]+"-data.csv")
+    
+    writeInCsv(allData, "./data/"+PathName+"/"+PathName+"-data.csv")
  
 def main():
-    url = "https://books.toscrape.com/"
-    categories = getAllCategories(url)
+    categories = getAllCategories(MainUrl)
     for category in categories:
-        getCategoryData(url+category, category)
+        getCategoryData(MainUrl+category, category)
 
 if __name__ == "__main__":
     main()
